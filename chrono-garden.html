@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chrono Garden</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil: #2d1a0e;
+    --soil-mid: #3d2410;
+    --moss: #4a6741;
+    --sage: #7a9e6e;
+    --gold: #c9a84c;
+    --amber: #e8b84b;
+    --petal: #d4607a;
+    --sky: #1a2535;
+    --dawn: #f5e6c8;
+    --time: #7eb8d4;
+    --glow: rgba(201,168,76,0.18);
+    --ink: #f5efe6;
+    --ink-dim: #a89880;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--sky); }
+  body { font-family: 'Crimson Pro', Georgia, serif; color: var(--ink); display: flex; flex-direction: column; }
+
+  /* BACKGROUND */
+  #bg {
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(ellipse at 50% 0%, #2a3a50 0%, #1a2535 60%, #0d1520 100%);
+  }
+  #stars {
+    position: fixed; inset: 0; z-index: 1;
+    background-image:
+      radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 60% 10%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 30%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 20%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 90% 5%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 8%, rgba(255,255,255,0.4) 0%, transparent 100%);
+  }
+
+  /* LAYOUT */
+  #app { position: relative; z-index: 2; width: 100%; height: 100vh; display: flex; flex-direction: column; }
+
+  /* HEADER */
+  #header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+    background: rgba(13,21,32,0.7); backdrop-filter: blur(8px);
+  }
+  #title { font-family: 'Cinzel', serif; font-size: 22px; color: var(--gold); letter-spacing: 2px; }
+  #title span { color: var(--time); font-size: 14px; display: block; letter-spacing: 4px; font-weight: 400; margin-top: -2px; }
+
+  #hud { display: flex; gap: 24px; align-items: center; }
+  .hud-item { text-align: center; }
+  .hud-label { font-size: 10px; letter-spacing: 2px; color: var(--ink-dim); text-transform: uppercase; }
+  .hud-val { font-family: 'Cinzel', serif; font-size: 18px; color: var(--amber); }
+
+  #time-bar-wrap { width: 160px; }
+  #time-bar-bg { height: 8px; background: rgba(126,184,212,0.15); border-radius: 4px; border: 1px solid rgba(126,184,212,0.3); overflow: hidden; }
+  #time-bar { height: 100%; width: 100%; background: linear-gradient(90deg, var(--time), #a8d8f0); border-radius: 4px; transition: width 0.3s; }
+
+  /* MAIN AREA */
+  #main { flex: 1; display: flex; gap: 0; overflow: hidden; }
+
+  /* GARDEN */
+  #garden-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }
+  #garden-label { font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 3px; color: var(--ink-dim); margin-bottom: 12px; }
+
+  #garden {
+    display: grid;
+    gap: 6px;
+    padding: 20px;
+    background: rgba(45,26,14,0.6);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.3);
+  }
+
+  .plot {
+    width: 72px; height: 72px;
+    background: var(--soil);
+    border-radius: 8px;
+    border: 1px solid rgba(201,168,76,0.12);
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.1s;
+    user-select: none;
+  }
+  .plot:hover { border-color: rgba(201,168,76,0.4); transform: scale(1.04); }
+  .plot.selected { border-color: var(--gold); box-shadow: 0 0 12px rgba(201,168,76,0.4); }
+  .plot.locked { cursor: default; background: rgba(20,14,8,0.8); opacity: 0.5; }
+  .plot.locked:hover { transform: none; border-color: rgba(201,168,76,0.12); }
+
+  .plant-emoji { font-size: 28px; line-height: 1; transition: transform 0.3s; }
+  .plot:hover .plant-emoji { transform: scale(1.1); }
+  .stage-label { font-size: 9px; color: var(--ink-dim); letter-spacing: 1px; margin-top: 2px; text-transform: uppercase; }
+  .reverse-shimmer {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(135deg, transparent 40%, rgba(126,184,212,0.15) 50%, transparent 60%);
+    background-size: 200% 200%;
+    animation: shimmer 2s linear infinite;
+  }
+  @keyframes shimmer { 0%{background-position:200% 200%} 100%{background-position:-200% -200%} }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: 220px; flex-shrink: 0;
+    background: rgba(13,21,32,0.8); backdrop-filter: blur(6px);
+    border-left: 1px solid rgba(201,168,76,0.15);
+    display: flex; flex-direction: column; padding: 16px; gap: 14px;
+    overflow-y: auto;
+  }
+  .side-title { font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 2px; color: var(--gold); border-bottom: 1px solid rgba(201,168,76,0.2); padding-bottom: 6px; }
+
+  /* ACTIONS */
+  .action-btn {
+    width: 100%; padding: 10px 14px; border-radius: 8px;
+    background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.25);
+    color: var(--dawn); font-family: 'Crimson Pro', serif; font-size: 15px;
+    cursor: pointer; text-align: left; transition: all 0.18s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .action-btn:hover:not(:disabled) { background: rgba(201,168,76,0.18); border-color: var(--gold); }
+  .action-btn:disabled { opacity: 0.35; cursor: default; }
+  .action-btn.active { background: rgba(126,184,212,0.2); border-color: var(--time); color: var(--time); }
+  .action-icon { font-size: 18px; }
+  .action-info { flex: 1; }
+  .action-name { font-size: 14px; }
+  .action-cost { font-size: 11px; color: var(--ink-dim); }
+
+  /* PLANT SELECTOR */
+  .seed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seed-btn {
+    padding: 8px; border-radius: 8px; border: 1px solid rgba(201,168,76,0.2);
+    background: rgba(45,26,14,0.5); cursor: pointer; text-align: center;
+    transition: all 0.18s; font-family: 'Crimson Pro', serif; color: var(--ink);
+  }
+  .seed-btn:hover { border-color: var(--gold); background: rgba(201,168,76,0.1); }
+  .seed-btn.chosen { border-color: var(--sage); background: rgba(74,103,65,0.3); }
+  .seed-emoji { font-size: 20px; display: block; }
+  .seed-name { font-size: 11px; color: var(--ink-dim); }
+
+  /* INFO PANEL */
+  #info-panel { background: rgba(201,168,76,0.05); border: 1px solid rgba(201,168,76,0.15); border-radius: 8px; padding: 12px; font-size: 13px; color: var(--ink-dim); line-height: 1.6; min-height: 70px; }
+  #info-panel strong { color: var(--dawn); }
+
+  /* LOG */
+  #log { font-size: 12px; color: var(--ink-dim); line-height: 1.8; max-height: 100px; overflow-y: auto; }
+  #log div { padding: 1px 0; }
+  #log div:first-child { color: var(--ink); }
+  .log-time { color: var(--time); }
+  .log-gold { color: var(--gold); }
+  .log-warn { color: #e87b4b; }
+
+  /* MODAL */
+  #modal-bg { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; display: none; }
+  #modal-bg.show { display: flex; }
+  #modal {
+    background: #101b28; border: 1px solid rgba(201,168,76,0.4); border-radius: 16px;
+    padding: 32px 40px; max-width: 420px; width: 90%; text-align: center;
+    box-shadow: 0 0 60px rgba(201,168,76,0.15);
+  }
+  #modal h2 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 26px; margin-bottom: 10px; }
+  #modal p { color: var(--ink-dim); font-size: 16px; line-height: 1.7; margin-bottom: 20px; }
+  #modal .modal-stat { font-family: 'Cinzel', serif; font-size: 28px; color: var(--amber); }
+  .modal-btn {
+    padding: 12px 28px; border-radius: 8px; font-family: 'Cinzel', serif; font-size: 14px;
+    letter-spacing: 1px; cursor: pointer; border: 1px solid var(--gold);
+    background: rgba(201,168,76,0.1); color: var(--gold); transition: all 0.2s;
+    margin: 6px;
+  }
+  .modal-btn:hover { background: var(--gold); color: var(--soil); }
+
+  /* PARTICLES */
+  .particle {
+    position: fixed; pointer-events: none; z-index: 50; font-size: 16px;
+    animation: float-up 1.2s ease-out forwards;
+  }
+  @keyframes float-up {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(0.5); }
+  }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div id="stars"></div>
+
+<div id="app">
+  <div id="header">
+    <div id="title">
+      Chrono Garden
+      <span>⟳ time flows backwards</span>
+    </div>
+    <div id="hud">
+      <div class="hud-item">
+        <div class="hud-label">Seeds</div>
+        <div class="hud-val" id="hud-seeds">12</div>
+      </div>
+      <div class="hud-item">
+        <div class="hud-label">Essence</div>
+        <div class="hud-val" id="hud-essence">0</div>
+      </div>
+      <div class="hud-item">
+        <div class="hud-label">Score</div>
+        <div class="hud-val" id="hud-score">0</div>
+      </div>
+      <div class="hud-item" id="time-bar-wrap">
+        <div class="hud-label">Time Remaining</div>
+        <div class="hud-label" style="color:var(--time);font-size:13px;letter-spacing:0" id="timer-text">3:00</div>
+        <div id="time-bar-bg"><div id="time-bar"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="garden-wrap">
+      <div class="garden-label" id="garden-label">Level 1 — The Awakening</div>
+      <div id="garden"></div>
+    </div>
+
+    <div id="sidebar">
+      <div class="side-title">🌱 Plant</div>
+      <div class="seed-grid" id="seed-grid"></div>
+
+      <div class="side-title">⚡ Actions</div>
+      <button class="action-btn" id="btn-reverse" onclick="doAction('reverse')">
+        <span class="action-icon">⟳</span>
+        <div class="action-info">
+          <div class="action-name">Reverse Time</div>
+          <div class="action-cost">Cost: 2 essence</div>
+        </div>
+      </button>
+      <button class="action-btn" id="btn-water" onclick="doAction('water')">
+        <span class="action-icon">💧</span>
+        <div class="action-info">
+          <div class="action-name">Water</div>
+          <div class="action-cost">Advances growth</div>
+        </div>
+      </button>
+      <button class="action-btn" id="btn-unlock" onclick="doAction('unlock')">
+        <span class="action-icon">🔓</span>
+        <div class="action-info">
+          <div class="action-name">Unlock Plot</div>
+          <div class="action-cost">Cost: 5 essence</div>
+        </div>
+      </button>
+      <button class="action-btn" id="btn-harvest" onclick="doAction('harvest')">
+        <span class="action-icon">✂️</span>
+        <div class="action-info">
+          <div class="action-name">Harvest</div>
+          <div class="action-cost">Collect fully grown</div>
+        </div>
+      </button>
+
+      <div class="side-title">📜 Info</div>
+      <div id="info-panel">Select a plot to inspect it.</div>
+
+      <div class="side-title">🕰 Chronicle</div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-bg">
+  <div id="modal">
+    <h2 id="modal-title">Level Complete!</h2>
+    <p id="modal-body"></p>
+    <div class="modal-stat" id="modal-stat"></div>
+    <br><br>
+    <button class="modal-btn" id="modal-btn" onclick="nextLevel()">Next Level →</button>
+  </div>
+</div>
+
+<script>
+const PLANTS = [
+  { id:'rose',    name:'Rose',    emoji:['🌱','🌿','🌹'], score:30, essence:3 },
+  { id:'tree',    name:'Oak',     emoji:['🌱','🌿','🌳'], score:50, essence:5 },
+  { id:'flower',  name:'Lily',    emoji:['🌱','🌿','🌸'], score:20, essence:2 },
+  { id:'herb',    name:'Herb',    emoji:['🌱','🌿','🌾'], score:15, essence:1 },
+];
+
+const LEVELS = [
+  { name:'The Awakening',    grid:3, time:180, seeds:12, goal:100 },
+  { name:'The Withering',    grid:4, time:150, seeds:16, goal:250, events:['storm'] },
+  { name:'The Paradox',      grid:4, time:120, seeds:14, goal:400, events:['storm','drought'] },
+  { name:'Eternity\'s Garden', grid:5, time:150, seeds:18, goal:600, events:['storm','drought','blight'] },
+];
+
+let state = {
+  level: 0,
+  seeds: 12,
+  essence: 0,
+  score: 0,
+  plots: [],
+  selected: null,
+  action: null,
+  chosenPlant: PLANTS[0],
+  timeLeft: 180,
+  totalTime: 180,
+  running: false,
+  timerInterval: null,
+};
+
+function initLevel(lvlIdx) {
+  const lvl = LEVELS[lvlIdx];
+  state.level = lvlIdx;
+  state.seeds = lvl.seeds;
+  state.essence = 0;
+  state.score = 0;
+  state.selected = null;
+  state.action = null;
+  state.chosenPlant = PLANTS[0];
+  state.timeLeft = lvl.time;
+  state.totalTime = lvl.time;
+  state.running = true;
+
+  const n = lvl.grid * lvl.grid;
+  state.plots = Array.from({length: n}, (_, i) => ({
+    id: i,
+    locked: i >= Math.ceil(n * 0.6),
+    plant: null,
+    stage: 0,    // 0=empty 1=seed 2=sprout 3=full
+    watered: false,
+    reversed: false,
+    event: null,
+  }));
+
+  document.getElementById('garden-label').textContent = `Level ${lvlIdx+1} — ${lvl.name}`;
+  renderGarden(lvl.grid);
+  renderSeedGrid();
+  clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(tick, 1000);
+  updateHUD();
+  log('⟳ Time begins to flow backwards...', 'time');
+
+  // Schedule random events
+  if (lvl.events) {
+    lvl.events.forEach(ev => {
+      setTimeout(() => triggerEvent(ev), (lvl.time * 0.3 + Math.random() * lvl.time * 0.4) * 1000);
+    });
+  }
+}
+
+function renderGarden(gridSize) {
+  const g = document.getElementById('garden');
+  g.style.gridTemplateColumns = `repeat(${gridSize}, 72px)`;
+  g.innerHTML = '';
+  state.plots.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'plot' + (p.locked ? ' locked' : '') + (state.selected === p.id ? ' selected' : '');
+    el.dataset.id = p.id;
+    el.onclick = () => selectPlot(p.id);
+
+    const emoji = document.createElement('div');
+    emoji.className = 'plant-emoji';
+    emoji.textContent = plotEmoji(p);
+    el.appendChild(emoji);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'stage-label';
+    lbl.textContent = p.locked ? '🔒 locked' : stageName(p);
+    el.appendChild(lbl);
+
+    if (p.reversed) {
+      const shim = document.createElement('div');
+      shim.className = 'reverse-shimmer';
+      el.appendChild(shim);
+    }
+    g.appendChild(el);
+  });
+}
+
+function plotEmoji(p) {
+  if (p.locked) return '░';
+  if (!p.plant) return p.event === 'storm' ? '⛈' : p.event === 'drought' ? '☀️' : p.event === 'blight' ? '🍂' : '▪';
+  const plant = PLANTS.find(pl => pl.id === p.plant);
+  if (!plant) return '▪';
+  return plant.emoji[Math.min(p.stage - 1, 2)] || '🌱';
+}
+
+function stageName(p) {
+  if (!p.plant) return p.event ? p.event : 'empty';
+  const stages = ['','seed','sprout','bloomed'];
+  return stages[p.stage] || 'full';
+}
+
+function renderSeedGrid() {
+  const sg = document.getElementById('seed-grid');
+  sg.innerHTML = '';
+  PLANTS.forEach(pl => {
+    const btn = document.createElement('button');
+    btn.className = 'seed-btn' + (state.chosenPlant.id === pl.id ? ' chosen' : '');
+    btn.innerHTML = `<span class="seed-emoji">${pl.emoji[2]}</span><span class="seed-name">${pl.name}</span>`;
+    btn.onclick = () => { state.chosenPlant = pl; renderSeedGrid(); };
+    sg.appendChild(btn);
+  });
+}
+
+function selectPlot(id) {
+  const p = state.plots[id];
+  if (p.locked && state.action !== 'unlock') {
+    updateInfo(p); return;
+  }
+  state.selected = id;
+
+  if (state.action) {
+    applyAction(id);
+  } else {
+    updateInfo(p);
+  }
+  renderGarden(LEVELS[state.level].grid);
+}
+
+function applyAction(id) {
+  const p = state.plots[id];
+  const action = state.action;
+
+  if (action === 'plant') {
+    if (p.locked) { log('Plot is locked.', 'warn'); return; }
+    if (p.plant) { log('Already planted here.', 'warn'); return; }
+    if (p.event) { log('Clear the event first!', 'warn'); return; }
+    if (state.seeds <= 0) { log('No seeds left!', 'warn'); return; }
+    p.plant = state.chosenPlant.id;
+    p.stage = 1;
+    state.seeds--;
+    updateHUD();
+    particle(id, '🌱');
+    log(`Planted ${state.chosenPlant.name}.`, 'gold');
+  }
+
+  else if (action === 'water') {
+    if (!p.plant) { log('Nothing planted here.', 'warn'); return; }
+    if (p.stage >= 3) { log('Already fully grown!', 'warn'); return; }
+    if (p.event === 'drought') { log('Drought prevents watering!', 'warn'); return; }
+    p.stage++;
+    p.watered = true;
+    particle(id, '💧');
+    log(`Watered — ${stageName(p)}.`);
+    if (p.stage === 3) { log(`${PLANTS.find(pl=>pl.id===p.plant).name} is ready to harvest!`, 'gold'); }
+  }
+
+  else if (action === 'reverse') {
+    if (state.essence < 2) { log('Need 2 essence to reverse time!', 'warn'); return; }
+    if (!p.plant && !p.event) { log('Nothing to reverse here.', 'warn'); return; }
+    state.essence -= 2;
+    if (p.event) {
+      p.event = null;
+      particle(id, '⟳');
+      log('Event reversed by chrono energy!', 'time');
+    } else {
+      if (p.stage > 1) { p.stage--; }
+      else { p.plant = null; p.stage = 0; state.seeds++; }
+      p.reversed = true;
+      setTimeout(() => { p.reversed = false; renderGarden(LEVELS[state.level].grid); }, 2000);
+      particle(id, '⟳');
+      log('Time reversed on this plant.', 'time');
+    }
+    updateHUD();
+  }
+
+  else if (action === 'harvest') {
+    if (!p.plant || p.stage < 3) { log('Not ready to harvest.', 'warn'); return; }
+    const plant = PLANTS.find(pl => pl.id === p.plant);
+    const pts = plant.score;
+    const ess = plant.essence;
+    state.score += pts;
+    state.essence += ess;
+    p.plant = null; p.stage = 0; p.watered = false;
+    updateHUD();
+    particle(id, '✨');
+    log(`Harvested ${plant.name}: +${pts} pts, +${ess} essence!`, 'gold');
+    checkWin();
+  }
+
+  else if (action === 'unlock') {
+    if (!p.locked) { log('Already unlocked.', 'warn'); return; }
+    if (state.essence < 5) { log('Need 5 essence to unlock!', 'warn'); return; }
+    state.essence -= 5;
+    p.locked = false;
+    updateHUD();
+    particle(id, '🔓');
+    log('Plot unlocked!', 'gold');
+  }
+
+  renderGarden(LEVELS[state.level].grid);
+  updateInfo(p);
+}
+
+function doAction(type) {
+  // toggle plant action separately
+  if (type === 'water' || type === 'harvest' || type === 'reverse' || type === 'unlock') {
+    state.action = (state.action === type) ? null : type;
+  } else {
+    state.action = type;
+  }
+  document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('active'));
+  if (state.action) {
+    const map = { reverse:'btn-reverse', water:'btn-water', unlock:'btn-unlock', harvest:'btn-harvest' };
+    if (map[state.action]) document.getElementById(map[state.action])?.classList.add('active');
+    // Default to plant when seed clicked
+    updateInfoPanel(`<strong>${state.action.charAt(0).toUpperCase()+state.action.slice(1)}</strong> — click a plot to apply.`);
+  }
+}
+
+// Intercept seed grid clicks as plant action
+document.getElementById('seed-grid').addEventListener('click', () => {
+  state.action = 'plant';
+  document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('active'));
+  updateInfoPanel(`<strong>Plant ${state.chosenPlant.name}</strong> — click an empty plot.`);
+});
+
+function tick() {
+  if (!state.running) return;
+  state.timeLeft--;
+  updateTimer();
+  // Natural un-bloom: every 18s a random grown plant loses a stage
+  if (state.timeLeft % 18 === 0) {
+    const grown = state.plots.filter(p => p.plant && p.stage >= 2 && !p.reversed);
+    if (grown.length) {
+      const p = grown[Math.floor(Math.random() * grown.length)];
+      p.stage--;
+      particle(p.id, '⟳');
+      log('Time pulls a plant backwards...', 'time');
+      renderGarden(LEVELS[state.level].grid);
+    }
+  }
+  if (state.timeLeft <= 0) {
+    clearInterval(state.timerInterval);
+    state.running = false;
+    endLevel();
+  }
+}
+
+function updateTimer() {
+  const m = Math.floor(state.timeLeft/60);
+  const s = String(state.timeLeft%60).padStart(2,'0');
+  document.getElementById('timer-text').textContent = `${m}:${s}`;
+  const pct = state.timeLeft / state.totalTime * 100;
+  document.getElementById('time-bar').style.width = pct + '%';
+  document.getElementById('time-bar').style.background =
+    pct > 50 ? 'linear-gradient(90deg, var(--time), #a8d8f0)' :
+    pct > 25 ? 'linear-gradient(90deg, #e8b84b, #fad97a)' :
+    'linear-gradient(90deg, #e87b4b, #f0a070)';
+}
+
+function updateHUD() {
+  document.getElementById('hud-seeds').textContent = state.seeds;
+  document.getElementById('hud-essence').textContent = state.essence;
+  document.getElementById('hud-score').textContent = state.score;
+}
+
+function updateInfo(p) {
+  if (!p) return;
+  let html = '';
+  if (p.locked) { html = '<strong>Locked plot.</strong> Unlock with 5 essence.'; }
+  else if (!p.plant) { html = p.event ? `<strong>Event: ${p.event}!</strong><br>Use Reverse Time to clear.` : 'Empty soil. Select a plant and click to sow.'; }
+  else {
+    const plant = PLANTS.find(pl => pl.id === p.plant);
+    const stages = ['','🌱 Seed','🌿 Sprouting','🌹 Full bloom'];
+    html = `<strong>${plant.name}</strong><br>${stages[p.stage]}<br>Harvest for <span style="color:var(--gold)">${plant.score} pts</span> + <span style="color:var(--time)">${plant.essence} essence</span>`;
+    if (p.stage < 3) html += '<br>💧 Water to advance.';
+    else html += '<br>✂️ Ready to harvest!';
+  }
+  updateInfoPanel(html);
+}
+
+function updateInfoPanel(html) {
+  document.getElementById('info-panel').innerHTML = html;
+}
+
+function triggerEvent(type) {
+  if (!state.running) return;
+  const empties = state.plots.filter(p => !p.locked && !p.event);
+  if (!empties.length) return;
+  const p = empties[Math.floor(Math.random() * empties.length)];
+  p.event = type;
+  const icons = { storm:'⛈', drought:'☀️', blight:'🍂' };
+  particle(p.id, icons[type] || '⚠️');
+  log(`${type.toUpperCase()} strikes plot ${p.id+1}! Reverse to clear.`, 'warn');
+  renderGarden(LEVELS[state.level].grid);
+  // Auto-clear after 25s if not reversed
+  setTimeout(() => {
+    if (p.event === type) {
+      // Damage nearby plants
+      if (type === 'storm' || type === 'blight') {
+        const nearby = state.plots.filter(q => !q.locked && q.plant && q.stage > 0 && Math.abs(q.id - p.id) <= 1);
+        nearby.forEach(q => { if (q.stage > 1) q.stage--; else { q.plant = null; q.stage = 0; } });
+        if (nearby.length) log('Event damaged nearby plants!', 'warn');
+      }
+      p.event = null;
+      renderGarden(LEVELS[state.level].grid);
+    }
+  }, 25000);
+}
+
+function checkWin() {
+  const goal = LEVELS[state.level].goal;
+  if (state.score >= goal) {
+    clearInterval(state.timerInterval);
+    state.running = false;
+    showModal(true);
+  }
+}
+
+function endLevel() {
+  showModal(false);
+}
+
+function showModal(win) {
+  const goal = LEVELS[state.level].goal;
+  const modal = document.getElementById('modal-bg');
+  const isLast = state.level >= LEVELS.length - 1;
+  if (win) {
+    document.getElementById('modal-title').textContent = isLast ? '🌸 Garden Eternal!' : '🌿 Level Complete!';
+    document.getElementById('modal-body').textContent = isLast
+      ? 'You have mastered the flow of reversed time. The Chrono Garden blooms forever.'
+      : `You reached the goal with ${state.timeLeft}s remaining. The garden remembers your care.`;
+    document.getElementById('modal-stat').textContent = `${state.score} pts`;
+    document.getElementById('modal-btn').textContent = isLast ? '↺ Play Again' : 'Next Level →';
+  } else {
+    document.getElementById('modal-title').textContent = state.score >= goal ? '🌸 Victory!' : '🌾 Time Expired';
+    document.getElementById('modal-body').textContent = state.score >= goal
+      ? 'You reached the goal just in time!'
+      : `Goal was ${goal} pts. You earned ${state.score}. The garden needs more tending.`;
+    document.getElementById('modal-stat').textContent = `${state.score} / ${goal}`;
+    document.getElementById('modal-btn').textContent = state.score >= goal ? (isLast ? '↺ Play Again' : 'Next Level →') : '↺ Try Again';
+    if (state.score < goal) {
+      document.getElementById('modal-btn').onclick = () => { document.getElementById('modal-bg').classList.remove('show'); initLevel(state.level); };
+    }
+  }
+  modal.classList.add('show');
+}
+
+function nextLevel() {
+  document.getElementById('modal-bg').classList.remove('show');
+  const next = (state.level + 1) % LEVELS.length;
+  initLevel(next);
+}
+
+function log(msg, cls) {
+  const logEl = document.getElementById('log');
+  const div = document.createElement('div');
+  if (cls === 'time') div.innerHTML = `<span class="log-time">◈ ${msg}</span>`;
+  else if (cls === 'gold') div.innerHTML = `<span class="log-gold">✦ ${msg}</span>`;
+  else if (cls === 'warn') div.innerHTML = `<span class="log-warn">⚠ ${msg}</span>`;
+  else div.textContent = '· ' + msg;
+  logEl.insertBefore(div, logEl.firstChild);
+  while (logEl.children.length > 12) logEl.removeChild(logEl.lastChild);
+}
+
+function particle(plotId, emoji) {
+  const plots = document.querySelectorAll('.plot');
+  const el = plots[plotId];
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const p = document.createElement('div');
+  p.className = 'particle';
+  p.textContent = emoji;
+  p.style.left = (rect.left + rect.width/2 - 10) + 'px';
+  p.style.top = (rect.top + rect.height/2) + 'px';
+  document.body.appendChild(p);
+  setTimeout(() => p.remove(), 1300);
+}
+
+// Start
+initLevel(0);
+log('Welcome, Gardener. Plant seeds and harvest before time reclaims them.', 'gold');
+log('Essence lets you reverse time\'s decay.', 'time');
+</script>
+</body>
+</html>
