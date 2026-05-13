@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resonance</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #040a0f; }
+body { font-family: 'Share Tech Mono', monospace; color: #c8e8f0; }
+
+:root {
+  --bg: #040a0f;
+  --panel: #070f17;
+  --border: #0d2235;
+  --accent: #00d4ff;
+  --accent2: #ff6b35;
+  --accent3: #39ff14;
+  --accent4: #ff2d78;
+  --gold: #ffd700;
+  --dim: #1a3a50;
+  --text: #c8e8f0;
+  --text-dim: #4a7a90;
+}
+
+/* ── LAYOUT ── */
+#app { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+
+#header {
+  height: 52px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, #040f1a 0%, #070f17 50%, #040f1a 100%);
+  position: relative;
+}
+#header::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.5;
+}
+#logo { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 6px; color: var(--accent); text-shadow: 0 0 20px var(--accent); }
+#logo span { color: var(--accent2); }
+
+.hud { display: flex; gap: 28px; align-items: center; }
+.hud-item { text-align: right; }
+.hud-label { font-size: 9px; letter-spacing: 3px; color: var(--text-dim); text-transform: uppercase; }
+.hud-val { font-family: 'Orbitron', sans-serif; font-size: 16px; color: var(--accent); }
+
+#main { flex: 1; display: flex; overflow: hidden; }
+
+/* ── LEFT PANEL ── */
+#left-panel {
+  width: 180px; flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 14px 12px; gap: 12px;
+}
+.panel-title {
+  font-size: 9px; letter-spacing: 3px; color: var(--text-dim);
+  text-transform: uppercase; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Wave sources */
+.source-list { display: flex; flex-direction: column; gap: 8px; }
+.source-item {
+  padding: 10px; border-radius: 6px; border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
+  background: rgba(0,0,0,0.3);
+}
+.source-item:hover { border-color: var(--accent); }
+.source-item.active { border-color: var(--accent); background: rgba(0,212,255,0.08); }
+.source-item.selected { box-shadow: 0 0 12px rgba(0,212,255,0.3); }
+.src-icon { font-size: 20px; margin-bottom: 4px; }
+.src-name { font-size: 12px; color: var(--text); }
+.src-desc { font-size: 10px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+.src-freq { font-family: 'Orbitron', sans-serif; font-size: 10px; margin-top: 4px; }
+.src-pulse {
+  position: absolute; top: 6px; right: 8px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--accent);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.4); }
+}
+
+/* Controls */
+.ctrl-btn {
+  width: 100%; padding: 9px; border-radius: 6px; font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; letter-spacing: 1px; cursor: pointer; border: 1px solid var(--border);
+  background: rgba(0,0,0,0.4); color: var(--text); transition: all 0.15s; text-align: left;
+  display: flex; align-items: center; gap: 8px;
+}
+.ctrl-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.ctrl-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.1); }
+.ctrl-btn.danger:hover { border-color: var(--accent4); color: var(--accent4); }
+
+/* ── CENTER — CANVAS ── */
+#center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: var(--bg); }
+#canvas-wrap { position: relative; }
+canvas { display: block; cursor: crosshair; }
+#canvas-overlay { position: absolute; inset: 0; pointer-events: none; }
+
+/* Level info */
+#level-banner {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 3px;
+  color: var(--text-dim); text-align: center; white-space: nowrap;
+}
+#progress-bar-wrap { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); width: 200px; }
+#progress-label { font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-align: center; margin-bottom: 4px; }
+#progress-bg { height: 4px; background: var(--dim); border-radius: 2px; overflow: hidden; }
+#progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3)); border-radius: 2px; width: 0%; transition: width 0.4s; }
+
+/* ── RIGHT PANEL ── */
+#right-panel {
+  width: 200px; flex-shrink: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 14px 12px; gap: 14px;
+}
+
+/* Frequency meter */
+#freq-meter { display: flex; flex-direction: column; gap: 6px; }
+.freq-row { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+.freq-label { width: 50px; color: var(--text-dim); }
+.freq-bar-bg { flex: 1; height: 6px; background: var(--dim); border-radius: 3px; overflow: hidden; }
+.freq-bar { height: 100%; border-radius: 3px; transition: width 0.2s; }
+
+/* Machines */
+#machines-list { display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+.machine-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--border); }
+.machine-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.machine-status.on { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+.machine-status.off { background: var(--dim); }
+.machine-name { flex: 1; }
+.machine-req { font-size: 9px; color: var(--text-dim); }
+
+/* Log */
+#log { font-size: 10px; color: var(--text-dim); overflow-y: auto; max-height: 120px; line-height: 1.9; }
+#log div:first-child { color: var(--text); }
+.log-accent { color: var(--accent); }
+.log-good { color: var(--accent3); }
+.log-warn { color: var(--accent2); }
+
+/* ── MODAL ── */
+#modal-bg {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(4,10,15,0.92); align-items: center; justify-content: center;
+}
+#modal-bg.show { display: flex; }
+#modal {
+  background: #070f17; border: 1px solid var(--accent);
+  border-radius: 12px; padding: 36px 44px; max-width: 400px; width: 90%; text-align: center;
+  box-shadow: 0 0 60px rgba(0,212,255,0.15), inset 0 0 40px rgba(0,0,0,0.5);
+}
+#modal h2 { font-family: 'Orbitron', sans-serif; font-size: 22px; color: var(--accent); letter-spacing: 3px; margin-bottom: 10px; }
+#modal p { color: var(--text-dim); font-size: 13px; line-height: 1.8; margin-bottom: 16px; }
+.modal-score { font-family: 'Orbitron', sans-serif; font-size: 32px; color: var(--gold); margin: 10px 0; }
+.modal-btn {
+  padding: 11px 24px; font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 2px;
+  cursor: pointer; border: 1px solid var(--accent); background: rgba(0,212,255,0.08);
+  color: var(--accent); border-radius: 6px; transition: all 0.2s; margin: 4px;
+}
+.modal-btn:hover { background: var(--accent); color: var(--bg); }
+
+/* Scanlines overlay */
+#scanlines {
+  position: fixed; inset: 0; pointer-events: none; z-index: 300;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+</style>
+</head>
+<body>
+<div id="scanlines"></div>
+
+<div id="app">
+  <div id="header">
+    <div id="logo">RESO<span>NAN</span>CE</div>
+    <div class="hud">
+      <div class="hud-item"><div class="hud-label">Level</div><div class="hud-val" id="hud-level">1</div></div>
+      <div class="hud-item"><div class="hud-label">Score</div><div class="hud-val" id="hud-score">0</div></div>
+      <div class="hud-item"><div class="hud-label">Sources</div><div class="hud-val" id="hud-sources">3</div></div>
+    </div>
+  </div>
+
+  <div id="main">
+    <!-- LEFT -->
+    <div id="left-panel">
+      <div class="panel-title">// Wave Sources</div>
+      <div class="source-list" id="source-list"></div>
+
+      <div class="panel-title">// Tools</div>
+      <button class="ctrl-btn" id="btn-reflector" onclick="setTool('reflector')">◈ Reflector</button>
+      <button class="ctrl-btn" id="btn-absorber" onclick="setTool('absorber')">▣ Absorber</button>
+      <button class="ctrl-btn" id="btn-erase" onclick="setTool('erase')">✕ Erase</button>
+      <button class="ctrl-btn danger" onclick="clearAll()">⌀ Clear All</button>
+
+      <div class="panel-title">// Playback</div>
+      <button class="ctrl-btn active" id="btn-play" onclick="togglePlay()">▶ Simulate</button>
+      <button class="ctrl-btn" onclick="stepOnce()">⏭ Step</button>
+    </div>
+
+    <!-- CENTER -->
+    <div id="center">
+      <div id="level-banner" id="level-banner">LEVEL 1 — HARMONIC AWAKENING</div>
+      <div id="canvas-wrap">
+        <canvas id="grid-canvas"></canvas>
+      </div>
+      <div id="progress-bar-wrap">
+        <div id="progress-label">RESONANCE ACHIEVED: 0%</div>
+        <div id="progress-bg"><div id="progress-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="right-panel">
+      <div class="panel-title">// Frequency</div>
+      <div id="freq-meter">
+        <div class="freq-row"><span class="freq-label">Low</span><div class="freq-bar-bg"><div class="freq-bar" id="freq-low" style="width:0%;background:var(--accent2)"></div></div></div>
+        <div class="freq-row"><span class="freq-label">Mid</span><div class="freq-bar-bg"><div class="freq-bar" id="freq-mid" style="width:0%;background:var(--accent)"></div></div></div>
+        <div class="freq-row"><span class="freq-label">High</span><div class="freq-bar-bg"><div class="freq-bar" id="freq-high" style="width:0%;background:var(--accent3)"></div></div></div>
+        <div class="freq-row"><span class="freq-label">Chaos</span><div class="freq-bar-bg"><div class="freq-bar" id="freq-chaos" style="width:0%;background:var(--accent4)"></div></div></div>
+      </div>
+
+      <div class="panel-title">// Machines</div>
+      <div id="machines-list"></div>
+
+      <div class="panel-title">// Signal Log</div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-bg" id="modal-bg">
+  <div id="modal">
+    <h2 id="modal-title">RESONANCE!</h2>
+    <p id="modal-body"></p>
+    <div class="modal-score" id="modal-score"></div>
+    <br>
+    <button class="modal-btn" id="modal-next" onclick="nextLevel()">NEXT LEVEL ›</button>
+    <button class="modal-btn" onclick="restartLevel()">RETRY</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════════
+const CELL = 36;
+const COLS = 16, ROWS = 12;
+const W = COLS * CELL, H = ROWS * CELL;
+
+const EMPTY = 0, WALL = 1, SOURCE = 2, REFLECTOR = 3, ABSORBER = 4, MACHINE = 5;
+
+// Wave frequencies
+const FREQ = { LOW: 1, MID: 2, HIGH: 3, CHAOS: 4 };
+const FREQ_COLOR = {
+  1: '#ff6b35', 2: '#00d4ff', 3: '#39ff14', 4: '#ff2d78'
+};
+const FREQ_NAME = { 1:'Low', 2:'Mid', 3:'High', 4:'Chaos' };
+
+const SOURCE_DEFS = [
+  { id:1, freq: FREQ.LOW,   name:'Bass',     desc:'Low freq, long range',    icon:'🔴', period:8 },
+  { id:2, freq: FREQ.MID,   name:'Mid',      desc:'Balanced, medium range',  icon:'🔵', period:5 },
+  { id:3, freq: FREQ.HIGH,  name:'Treble',   desc:'High freq, short range',  icon:'🟢', period:3 },
+  { id:4, freq: FREQ.CHAOS, name:'Noise',    desc:'Chaotic, unpredictable',  icon:'🔴', period:2 },
+];
+
+const LEVELS = [
+  {
+    name: 'HARMONIC AWAKENING',
+    sources: [1,2],
+    goal: 60,
+    machines: [
+      { id:'A', col:13, row:3,  needs: FREQ.LOW,   name:'Resonator A' },
+      { id:'B', col:13, row:8,  needs: FREQ.MID,   name:'Resonator B' },
+    ],
+    walls: [[5,2],[5,3],[5,4],[5,7],[5,8],[5,9]],
+    hint: 'Place waves to reach both machines. Reflectors can bounce signals around walls.',
+  },
+  {
+    name: 'INTERFERENCE PATTERN',
+    sources: [1,2,3],
+    goal: 70,
+    machines: [
+      { id:'A', col:12, row:2,  needs: FREQ.HIGH,  name:'Amplifier' },
+      { id:'B', col:12, row:9,  needs: FREQ.LOW,   name:'Subwoofer' },
+      { id:'C', col:7,  row:5,  needs: FREQ.MID,   name:'Modulator' },
+    ],
+    walls: [[4,1],[4,2],[4,3],[4,4],[4,5],[8,6],[8,7],[8,8],[8,9],[8,10]],
+    hint: 'Waves interfere — constructive interference amplifies, destructive cancels.',
+  },
+  {
+    name: 'CHAOS THEORY',
+    sources: [1,2,3,4],
+    goal: 75,
+    machines: [
+      { id:'A', col:14, row:1,  needs: FREQ.CHAOS, name:'Chaos Engine' },
+      { id:'B', col:14, row:10, needs: FREQ.HIGH,  name:'Treble Matrix' },
+      { id:'C', col:2,  row:10, needs: FREQ.LOW,   name:'Bass Core' },
+      { id:'D', col:8,  row:5,  needs: FREQ.MID,   name:'Midfield Node' },
+    ],
+    walls: [[3,3],[3,4],[3,5],[6,1],[6,2],[6,3],[9,7],[9,8],[9,9],[12,3],[12,4],[12,5]],
+    hint: 'Use absorbers to block unwanted frequencies from reaching wrong machines.',
+  },
+  {
+    name: 'GRAND RESONANCE',
+    sources: [1,2,3,4],
+    goal: 85,
+    machines: [
+      { id:'A', col:14, row:2,  needs: FREQ.MID,   name:'Master Node A' },
+      { id:'B', col:14, row:5,  needs: FREQ.LOW,   name:'Master Node B' },
+      { id:'C', col:14, row:8,  needs: FREQ.HIGH,  name:'Master Node C' },
+      { id:'D', col:1,  row:9,  needs: FREQ.CHAOS, name:'Chaos Sink' },
+    ],
+    walls: [[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[7,6],[7,7],[7,8],[7,9],[7,10],[7,11],[10,0],[10,1],[10,2],[10,3],[10,4],[10,5]],
+    hint: 'The grand finale. All four frequencies must find their machines.',
+  },
+];
+
+// ═══════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════
+let lvlIdx = 0;
+let grid = [];         // [row][col] = { type, freq, ... }
+let waves = [];        // active wave particles
+let playing = false;
+let simInterval = null;
+let tick = 0;
+let score = 0;
+let selectedSource = null;
+let currentTool = 'source';
+let machineStates = {};  // id → { on, brightness }
+let resonanceScore = 0;
+let totalSources = 3;
+
+const canvas = document.getElementById('grid-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = W; canvas.height = H;
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+function initLevel(idx) {
+  lvlIdx = idx;
+  const lvl = LEVELS[idx];
+  tick = 0;
+  waves = [];
+  resonanceScore = 0;
+  machineStates = {};
+  totalSources = lvl.sources.length;
+
+  // Build grid
+  grid = Array.from({length: ROWS}, () =>
+    Array.from({length: COLS}, () => ({ type: EMPTY, freq: 0, data: null }))
+  );
+
+  // Walls
+  (lvl.walls || []).forEach(([c,r]) => {
+    if (inBounds(c,r)) grid[r][c].type = WALL;
+  });
+
+  // Machines
+  lvl.machines.forEach(m => {
+    grid[m.row][m.col] = { type: MACHINE, freq: m.needs, data: m };
+    machineStates[m.id] = { on: false, brightness: 0, machine: m };
+  });
+
+  // Default sources on left column, spread out
+  const srcRows = spreadRows(lvl.sources.length, ROWS);
+  lvl.sources.forEach((srcId, i) => {
+    const def = SOURCE_DEFS.find(s => s.id === srcId);
+    const r = srcRows[i];
+    grid[r][0] = { type: SOURCE, freq: def.freq, data: def };
+  });
+
+  // UI
+  renderSourcePanel(lvl);
+  renderMachines(lvl);
+  document.getElementById('hud-level').textContent = idx + 1;
+  document.getElementById('level-banner').textContent = `LEVEL ${idx+1} — ${lvl.name}`;
+  document.getElementById('hud-sources').textContent = lvl.sources.length;
+  log(`LVL ${idx+1}: ${lvl.name}`, 'accent');
+  log(lvl.hint, '');
+
+  if (playing) {
+    clearInterval(simInterval);
+    simInterval = setInterval(simStep, 80);
+  }
+  draw();
+  updateProgress();
+}
+
+function spreadRows(n, max) {
+  const step = Math.floor(max / (n + 1));
+  return Array.from({length: n}, (_, i) => step * (i + 1));
+}
+
+function inBounds(c, r) { return c >= 0 && c < COLS && r >= 0 && r < ROWS; }
+
+// ═══════════════════════════════════════════════════
+// SIMULATION
+// ═══════════════════════════════════════════════════
+function simStep() {
+  tick++;
+  const lvl = LEVELS[lvlIdx];
+
+  // Emit waves from sources
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell.type === SOURCE) {
+        const def = cell.data;
+        if (tick % def.period === 0) {
+          // Emit in 4 directions
+          [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr,dc]) => {
+            waves.push({ r, c, dr, dc, freq: cell.freq, age: 0, strength: 1.0, id: Math.random() });
+          });
+        }
+      }
+    }
+  }
+
+  // Move waves
+  const nextWaves = [];
+  const machineHits = {};
+
+  waves.forEach(w => {
+    const nr = w.r + w.dr;
+    const nc = w.c + w.dc;
+    w.age++;
+
+    // Max range by frequency
+    const maxAge = w.freq === FREQ.LOW ? 22 : w.freq === FREQ.MID ? 16 : w.freq === FREQ.HIGH ? 10 : 28;
+    if (w.age > maxAge || w.strength < 0.05) return;
+
+    if (!inBounds(nc, nr)) {
+      // Reflect off borders
+      nextWaves.push({ ...w, dr: -w.dr, dc: -w.dc, strength: w.strength * 0.6 });
+      return;
+    }
+
+    const cell = grid[nr][nc];
+
+    if (cell.type === WALL) {
+      // Dead stop
+      return;
+    }
+    if (cell.type === ABSORBER) {
+      // Kill wave
+      return;
+    }
+    if (cell.type === REFLECTOR) {
+      // Bounce: swap dr/dc and invert
+      const bounce = [
+        { ...w, r: nr, c: nc, dr: -w.dc, dc: -w.dr, strength: w.strength * 0.7 },
+        { ...w, r: nr, c: nc, dr: w.dc,  dc: w.dr,  strength: w.strength * 0.5 },
+      ];
+      nextWaves.push(...bounce);
+      return;
+    }
+    if (cell.type === MACHINE) {
+      if (cell.freq === w.freq) {
+        const id = cell.data.id;
+        if (!machineHits[id]) machineHits[id] = 0;
+        machineHits[id] += w.strength;
+      }
+      // wave continues through
+      nextWaves.push({ ...w, r: nr, c: nc, strength: w.strength * 0.9 });
+      return;
+    }
+
+    // Move wave forward
+    nextWaves.push({ ...w, r: nr, c: nc });
+  });
+
+  waves = nextWaves;
+
+  // Update machine states
+  Object.keys(machineStates).forEach(id => {
+    const hit = machineHits[id] || 0;
+    const wasOn = machineStates[id].on;
+    machineStates[id].brightness = Math.min(1, hit * 0.8);
+    machineStates[id].on = hit > 0.2;
+    if (!wasOn && machineStates[id].on) {
+      log(`${machineStates[id].machine.name} ACTIVATED!`, 'good');
+    }
+  });
+
+  // Frequency meter
+  const freqPower = { 1:0, 2:0, 3:0, 4:0 };
+  waves.forEach(w => { freqPower[w.freq] = (freqPower[w.freq] || 0) + w.strength * 0.02; });
+  document.getElementById('freq-low').style.width   = Math.min(100, freqPower[1]*100) + '%';
+  document.getElementById('freq-mid').style.width   = Math.min(100, freqPower[2]*100) + '%';
+  document.getElementById('freq-high').style.width  = Math.min(100, freqPower[3]*100) + '%';
+  document.getElementById('freq-chaos').style.width = Math.min(100, freqPower[4]*100) + '%';
+
+  updateProgress();
+  renderMachines(LEVELS[lvlIdx]);
+  draw();
+}
+
+function updateProgress() {
+  const lvl = LEVELS[lvlIdx];
+  const total = lvl.machines.length;
+  const on = Object.values(machineStates).filter(m => m.on).length;
+  const pct = Math.round((on / total) * 100);
+  resonanceScore = pct;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `RESONANCE ACHIEVED: ${pct}%`;
+
+  if (pct >= lvl.goal && playing) {
+    clearInterval(simInterval);
+    playing = false;
+    score += pct * (lvlIdx + 1) * 10;
+    document.getElementById('hud-score').textContent = score;
+    setTimeout(() => showWinModal(), 800);
+  }
+}
+
+function stepOnce() {
+  if (!playing) simStep();
+}
+
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('btn-play');
+  if (playing) {
+    simInterval = setInterval(simStep, 80);
+    btn.textContent = '⏸ Pause';
+    btn.classList.add('active');
+    log('Simulation running...', 'accent');
+  } else {
+    clearInterval(simInterval);
+    btn.textContent = '▶ Simulate';
+    btn.classList.remove('active');
+    log('Paused.', '');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// DRAWING
+// ═══════════════════════════════════════════════════
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid background
+  ctx.fillStyle = '#040a0f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(13,34,53,0.8)';
+  ctx.lineWidth = 0.5;
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c*CELL, 0); ctx.lineTo(c*CELL, H); ctx.stroke();
+  }
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r*CELL); ctx.lineTo(W, r*CELL); ctx.stroke();
+  }
+
+  // Wave heatmap
+  const heatmap = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+  waves.forEach(w => {
+    const cr = Math.round(w.r), cc = Math.round(w.c);
+    if (inBounds(cc, cr)) {
+      if (!heatmap[cr][cc] || heatmap[cr][cc].strength < w.strength) {
+        heatmap[cr][cc] = { freq: w.freq, strength: w.strength };
+      }
+    }
+  });
+
+  // Draw heat
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const h = heatmap[r][c];
+      if (h) {
+        const col = FREQ_COLOR[h.freq];
+        const alpha = h.strength * 0.55;
+        ctx.fillStyle = hexToRgba(col, alpha);
+        ctx.fillRect(c*CELL+1, r*CELL+1, CELL-2, CELL-2);
+
+        // Ripple dot
+        ctx.beginPath();
+        ctx.arc(c*CELL + CELL/2, r*CELL + CELL/2, 4 * h.strength + 1, 0, Math.PI*2);
+        ctx.fillStyle = hexToRgba(col, 0.9);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Draw grid cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      const x = c * CELL, y = r * CELL;
+      const cx = x + CELL/2, cy = y + CELL/2;
+
+      if (cell.type === WALL) {
+        ctx.fillStyle = '#0d2235';
+        ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+        ctx.fillStyle = '#152d42';
+        ctx.fillRect(x+3, y+3, CELL-6, CELL-6);
+        // Hex pattern
+        ctx.strokeStyle = '#1a3a50';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x+6, y+6, CELL-12, CELL-12);
+      }
+
+      else if (cell.type === SOURCE) {
+        const def = cell.data;
+        const col = FREQ_COLOR[def.freq];
+        const pulse = 0.6 + 0.4 * Math.sin(tick * 0.3 * def.period);
+        ctx.fillStyle = hexToRgba(col, 0.15);
+        ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+        // Rings
+        for (let ring = 1; ring <= 2; ring++) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, (ring * 7 + pulse * 3), 0, Math.PI*2);
+          ctx.strokeStyle = hexToRgba(col, 0.4 / ring);
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        // Core
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6, 0, Math.PI*2);
+        ctx.fillStyle = col;
+        ctx.fill();
+        // Label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 7px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(FREQ_NAME[def.freq][0], cx, cy + 10 + CELL/2 - 4);
+      }
+
+      else if (cell.type === REFLECTOR) {
+        ctx.strokeStyle = '#00d4ff';
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = 'rgba(0,212,255,0.08)';
+        ctx.fillRect(x+3, y+3, CELL-6, CELL-6);
+        // Diamond
+        ctx.beginPath();
+        ctx.moveTo(cx, y+5);
+        ctx.lineTo(x+CELL-5, cy);
+        ctx.lineTo(cx, y+CELL-5);
+        ctx.lineTo(x+5, cy);
+        ctx.closePath();
+        ctx.strokeStyle = '#00d4ff';
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0,212,255,0.15)';
+        ctx.fill();
+      }
+
+      else if (cell.type === ABSORBER) {
+        ctx.fillStyle = '#1a0a0a';
+        ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+        ctx.fillStyle = '#3d0f0f';
+        ctx.fillRect(x+4, y+4, CELL-8, CELL-8);
+        ctx.fillStyle = 'rgba(255,45,120,0.6)';
+        ctx.font = 'bold 14px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('▣', cx, cy);
+        ctx.textBaseline = 'alphabetic';
+      }
+
+      else if (cell.type === MACHINE) {
+        const ms = machineStates[cell.data.id];
+        const bright = ms ? ms.brightness : 0;
+        const col = FREQ_COLOR[cell.freq];
+        const on = ms && ms.on;
+
+        // Outer frame
+        ctx.strokeStyle = on ? col : '#1a3a50';
+        ctx.lineWidth = on ? 2 : 1;
+        ctx.strokeRect(x+2, y+2, CELL-4, CELL-4);
+
+        // Fill
+        ctx.fillStyle = on ? hexToRgba(col, 0.2) : 'rgba(10,20,30,0.8)';
+        ctx.fillRect(x+3, y+3, CELL-6, CELL-6);
+
+        // Glow
+        if (on) {
+          ctx.shadowColor = col;
+          ctx.shadowBlur = 12 * bright;
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x+2, y+2, CELL-4, CELL-4);
+          ctx.shadowBlur = 0;
+        }
+
+        // Core dot
+        ctx.beginPath();
+        ctx.arc(cx, cy, on ? 5 : 3, 0, Math.PI*2);
+        ctx.fillStyle = on ? col : '#1a3a50';
+        ctx.fill();
+
+        // ID label
+        ctx.fillStyle = on ? col : '#2a4a60';
+        ctx.font = `bold 8px Orbitron`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(cell.data.id, cx, cy + 10);
+        ctx.textBaseline = 'alphabetic';
+      }
+    }
+  }
+
+  // Interference visualization: where multiple waves overlap, draw X pattern
+  const overlap = {};
+  waves.forEach(w => {
+    const key = `${Math.round(w.r)},${Math.round(w.c)}`;
+    overlap[key] = (overlap[key] || []);
+    overlap[key].push(w);
+  });
+  Object.entries(overlap).forEach(([key, ws]) => {
+    if (ws.length >= 2) {
+      const [r,c] = key.split(',').map(Number);
+      if (!inBounds(c,r)) return;
+      const x = c*CELL, y = r*CELL;
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x+6, y+6); ctx.lineTo(x+CELL-6, y+CELL-6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+CELL-6, y+6); ctx.lineTo(x+6, y+CELL-6); ctx.stroke();
+    }
+  });
+
+  // Hover guide
+  ctx.textAlign = 'left';
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ═══════════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════════
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const c = Math.floor(mx / CELL);
+  const r = Math.floor(my / CELL);
+  if (!inBounds(c, r)) return;
+  const cell = grid[r][c];
+
+  if (currentTool === 'source') {
+    if (!selectedSource) { log('Select a source first!', 'warn'); return; }
+    if (cell.type === MACHINE || cell.type === WALL) return;
+    if (cell.type === SOURCE && cell.data && cell.data.id === selectedSource.id) {
+      grid[r][c] = { type: EMPTY, freq: 0, data: null };
+      log(`Removed ${selectedSource.name} source.`, '');
+    } else {
+      grid[r][c] = { type: SOURCE, freq: selectedSource.freq, data: selectedSource };
+      log(`Placed ${selectedSource.name} source at (${c},${r}).`, 'accent');
+    }
+  } else if (currentTool === 'reflector') {
+    if (cell.type === MACHINE || cell.type === WALL) return;
+    if (cell.type === REFLECTOR) {
+      grid[r][c] = { type: EMPTY, freq: 0, data: null };
+    } else {
+      grid[r][c] = { type: REFLECTOR, freq: 0, data: null };
+      log(`Reflector at (${c},${r}).`, '');
+    }
+  } else if (currentTool === 'absorber') {
+    if (cell.type === MACHINE || cell.type === WALL) return;
+    if (cell.type === ABSORBER) {
+      grid[r][c] = { type: EMPTY, freq: 0, data: null };
+    } else {
+      grid[r][c] = { type: ABSORBER, freq: 0, data: null };
+      log(`Absorber at (${c},${r}).`, '');
+    }
+  } else if (currentTool === 'erase') {
+    if (cell.type === MACHINE || cell.type === WALL) return;
+    grid[r][c] = { type: EMPTY, freq: 0, data: null };
+    log(`Cleared (${c},${r}).`, '');
+  }
+  draw();
+});
+
+// ═══════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════
+function setTool(tool) {
+  currentTool = tool;
+  selectedSource = null;
+  document.querySelectorAll('.source-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.ctrl-btn').forEach(el => el.classList.remove('active'));
+  const map = { reflector:'btn-reflector', absorber:'btn-absorber', erase:'btn-erase' };
+  if (map[tool]) document.getElementById(map[tool]).classList.add('active');
+}
+
+function renderSourcePanel(lvl) {
+  const list = document.getElementById('source-list');
+  list.innerHTML = '';
+  lvl.sources.forEach(srcId => {
+    const def = SOURCE_DEFS.find(s => s.id === srcId);
+    const item = document.createElement('div');
+    item.className = 'source-item';
+    item.dataset.id = def.id;
+    item.innerHTML = `
+      <div class="src-pulse"></div>
+      <div class="src-icon">${def.icon} <span style="color:${FREQ_COLOR[def.freq]};font-size:10px">${FREQ_NAME[def.freq]}</span></div>
+      <div class="src-name">${def.name}</div>
+      <div class="src-desc">${def.desc}</div>
+      <div class="src-freq" style="color:${FREQ_COLOR[def.freq]}">freq: ${def.freq}Hz · period: ${def.period}t</div>
+    `;
+    item.onclick = () => {
+      selectedSource = def;
+      currentTool = 'source';
+      document.querySelectorAll('.source-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.ctrl-btn').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+      log(`Selected ${def.name} source.`, 'accent');
+    };
+    list.appendChild(item);
+  });
+}
+
+function renderMachines(lvl) {
+  const list = document.getElementById('machines-list');
+  list.innerHTML = '';
+  lvl.machines.forEach(m => {
+    const ms = machineStates[m.id] || { on: false };
+    const div = document.createElement('div');
+    div.className = 'machine-item';
+    div.style.borderColor = ms.on ? FREQ_COLOR[m.needs] : 'var(--border)';
+    div.innerHTML = `
+      <div class="machine-status ${ms.on ? 'on' : 'off'}"></div>
+      <div>
+        <div class="machine-name">${m.name}</div>
+        <div class="machine-req" style="color:${FREQ_COLOR[m.needs]}">${FREQ_NAME[m.needs]} freq</div>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function clearAll() {
+  const lvl = LEVELS[lvlIdx];
+  waves = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell.type === REFLECTOR || cell.type === ABSORBER) {
+        grid[r][c] = { type: EMPTY, freq: 0, data: null };
+      }
+    }
+  }
+  // Re-place sources in default positions
+  const srcRows = spreadRows(lvl.sources.length, ROWS);
+  lvl.sources.forEach((srcId, i) => {
+    const def = SOURCE_DEFS.find(s => s.id === srcId);
+    const r = srcRows[i];
+    grid[r][0] = { type: SOURCE, freq: def.freq, data: def };
+  });
+  log('Grid cleared.', 'warn');
+  draw();
+}
+
+function showWinModal() {
+  document.getElementById('modal-title').textContent = lvlIdx >= LEVELS.length-1 ? '⚡ GRAND RESONANCE!' : '⚡ RESONANCE!';
+  document.getElementById('modal-body').textContent =
+    lvlIdx >= LEVELS.length-1
+      ? 'You have achieved perfect harmonic alignment across all frequencies. The machine sings.'
+      : `All required machines activated. Resonance at ${resonanceScore}%. Signal propagation successful.`;
+  document.getElementById('modal-score').textContent = `${score} pts`;
+  document.getElementById('modal-next').textContent = lvlIdx >= LEVELS.length-1 ? 'PLAY AGAIN' : 'NEXT LEVEL ›';
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+function nextLevel() {
+  document.getElementById('modal-bg').classList.remove('show');
+  const next = (lvlIdx + 1) % LEVELS.length;
+  initLevel(next);
+  if (!playing) togglePlay();
+}
+
+function restartLevel() {
+  document.getElementById('modal-bg').classList.remove('show');
+  initLevel(lvlIdx);
+}
+
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const div = document.createElement('div');
+  const prefix = cls === 'accent' ? '◈ ' : cls === 'good' ? '✦ ' : cls === 'warn' ? '⚠ ' : '· ';
+  div.innerHTML = `<span class="${cls ? 'log-'+cls : ''}">${prefix}${msg}</span>`;
+  el.insertBefore(div, el.firstChild);
+  while (el.children.length > 14) el.removeChild(el.lastChild);
+}
+
+// ═══════════════════════════════════════════════════
+// CANVAS RESIZE
+// ═══════════════════════════════════════════════════
+function resizeCanvas() {
+  const center = document.getElementById('center');
+  const availW = center.clientWidth - 32;
+  const availH = center.clientHeight - 80;
+  const scale = Math.min(availW / W, availH / H, 1);
+  canvas.style.width = (W * scale) + 'px';
+  canvas.style.height = (H * scale) + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ═══════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════
+initLevel(0);
+log('Welcome to RESONANCE', 'accent');
+log('Select a source · place it · hit Simulate', '');
+togglePlay();
+</script>
+</body>
+</html>
