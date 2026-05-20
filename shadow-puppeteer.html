@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Puppeteer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Spectral:ital,wght@0,300;1,300&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #0a0608;
+  font-family: 'Spectral', Georgia, serif;
+  color: #c8b8a2;
+  cursor: none;
+}
+
+#wrapper {
+  width: 100vw; height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+
+/* ── HEADER ── */
+#topbar {
+  width: 100%; max-width: 860px;
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 0 10px;
+}
+#game-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 400; letter-spacing: 3px;
+  color: #e8d8c0;
+  text-shadow: 0 0 30px rgba(232,216,192,0.3);
+}
+#game-title em { font-style: italic; color: #8a7060; }
+
+.hud-pills { display: flex; gap: 20px; align-items: center; }
+.pill {
+  font-family: 'Playfair Display', serif; font-size: 13px;
+  color: #6a5a4a; letter-spacing: 1px;
+}
+.pill span { color: #e8d8c0; margin-left: 6px; }
+
+/* ── CANVAS FRAME ── */
+#frame {
+  position: relative;
+  border: 1px solid #2a1e16;
+  box-shadow:
+    0 0 0 1px #150e0a,
+    0 0 60px rgba(0,0,0,0.9),
+    inset 0 0 80px rgba(0,0,0,0.5);
+}
+canvas { display: block; }
+
+/* ── HEALTH BAR ── */
+#health-wrap {
+  width: 100%; max-width: 860px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0 0;
+}
+#health-label { font-size: 11px; letter-spacing: 3px; color: #4a3a2a; text-transform: uppercase; }
+#health-bg {
+  flex: 1; height: 3px; background: #1a100a; border-radius: 2px; overflow: hidden;
+}
+#health-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, #3a2a1a, #8a6040);
+  border-radius: 2px;
+  transition: width 0.3s ease, background 0.5s;
+}
+#health-pct { font-size: 11px; color: #4a3a2a; width: 36px; text-align: right; }
+
+/* ── OVERLAY SCREENS ── */
+.screen {
+  display: none; position: absolute; inset: 0;
+  flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(10,6,8,0.94);
+  text-align: center;
+}
+.screen.show { display: flex; }
+
+.screen h1 {
+  font-family: 'Playfair Display', serif; font-weight: 400;
+  font-size: 42px; color: #e8d8c0; letter-spacing: 6px;
+  margin-bottom: 8px;
+  text-shadow: 0 0 40px rgba(232,216,192,0.2);
+}
+.screen h1 em { font-style: italic; color: #6a5040; }
+.screen p {
+  font-family: 'Spectral', serif; font-style: italic;
+  font-size: 15px; color: #5a4a3a; line-height: 2;
+  max-width: 420px; margin-bottom: 28px;
+}
+.screen .key-hint {
+  font-size: 11px; letter-spacing: 3px; color: #3a2a1a;
+  text-transform: uppercase; margin-top: 6px;
+}
+.play-btn {
+  font-family: 'Playfair Display', serif; font-size: 14px; letter-spacing: 4px;
+  padding: 13px 40px; border: 1px solid #3a2a1a;
+  background: transparent; color: #8a7060; cursor: none;
+  transition: all 0.3s; text-transform: uppercase;
+}
+.play-btn:hover { border-color: #8a7060; color: #e8d8c0; background: rgba(138,112,96,0.08); }
+
+.level-badge {
+  font-family: 'Playfair Display', serif; font-style: italic;
+  font-size: 18px; color: #6a5040; margin-bottom: 16px;
+}
+
+/* ── MOBILE CONTROLS ── */
+#mobile-ctrl {
+  display: none;
+  width: 100%; max-width: 860px;
+  justify-content: space-between;
+  padding: 8px 0 0;
+}
+@media (max-width: 900px) { #mobile-ctrl { display: flex; } }
+.m-btn {
+  padding: 10px 22px; border: 1px solid #2a1a10;
+  background: rgba(20,10,6,0.8); color: #5a4a3a;
+  font-family: 'Spectral', serif; font-size: 16px;
+  border-radius: 4px; user-select: none; -webkit-user-select: none;
+}
+
+/* Custom cursor */
+#cursor {
+  position: fixed; width: 8px; height: 8px;
+  border-radius: 50%; background: #8a7060;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%,-50%);
+  mix-blend-mode: difference;
+}
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+
+<div id="wrapper">
+  <div id="topbar">
+    <div id="game-title">Shadow <em>Puppeteer</em></div>
+    <div class="hud-pills">
+      <div class="pill">LEVEL<span id="hud-level">1</span></div>
+      <div class="pill">SCORE<span id="hud-score">0</span></div>
+      <div class="pill">SOULS<span id="hud-lives">♦♦♦</span></div>
+    </div>
+  </div>
+
+  <div id="frame">
+    <canvas id="gc"></canvas>
+
+    <!-- START -->
+    <div class="screen show" id="screen-start">
+      <h1>Shadow <em>Puppeteer</em></h1>
+      <p>You are the shadow.<br>
+         Light is your enemy — darkness, your sanctuary.<br>
+         Reach the door before the lanterns find you.</p>
+      <button class="play-btn" onclick="startGame()">Begin</button>
+      <div class="key-hint" style="margin-top:20px">← → to move &nbsp;·&nbsp; ↑ or Space to jump &nbsp;·&nbsp; stay in shadow</div>
+    </div>
+
+    <!-- LEVEL TITLE -->
+    <div class="screen" id="screen-level">
+      <div class="level-badge" id="lvl-subtitle"></div>
+      <h1 id="lvl-title-text">—</h1>
+      <p id="lvl-desc-text"></p>
+      <button class="play-btn" onclick="beginLevel()">Enter</button>
+    </div>
+
+    <!-- DEATH -->
+    <div class="screen" id="screen-death">
+      <h1><em>Exposed</em></h1>
+      <p>The light found you.<br>Your shadow dissolved.</p>
+      <button class="play-btn" onclick="retryLevel()">Persist</button>
+    </div>
+
+    <!-- WIN -->
+    <div class="screen" id="screen-win">
+      <h1>Eternal <em>Dark</em></h1>
+      <p>You have threaded every shadow,<br>outwitted every lantern.<br>The night is yours.</p>
+      <div class="level-badge" id="win-score"></div>
+      <button class="play-btn" onclick="restartGame()">Again</button>
+    </div>
+  </div>
+
+  <div id="health-wrap">
+    <div id="health-label">Darkness</div>
+    <div id="health-bg"><div id="health-fill"></div></div>
+    <div id="health-pct">100%</div>
+  </div>
+
+  <div id="mobile-ctrl">
+    <button class="m-btn" id="mb-left" ontouchstart="keys.left=true" ontouchend="keys.left=false">◀</button>
+    <button class="m-btn" id="mb-jump" ontouchstart="doJump()" ontouchend="">▲</button>
+    <button class="m-btn" id="mb-right" ontouchstart="keys.right=true" ontouchend="keys.right=false">▶</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// SETUP
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+
+const GW = 860, GH = 480;
+canvas.width = GW; canvas.height = GH;
+
+// Fit canvas to viewport
+(function resize() {
+  const vw = window.innerWidth - 32, vh = window.innerHeight - 120;
+  const scale = Math.min(vw / GW, vh / GH, 1);
+  canvas.style.width  = GW * scale + 'px';
+  canvas.style.height = GH * scale + 'px';
+})();
+window.addEventListener('resize', () => {
+  const vw = window.innerWidth - 32, vh = window.innerHeight - 120;
+  const scale = Math.min(vw / GW, vh / GH, 1);
+  canvas.style.width  = GW * scale + 'px';
+  canvas.style.height = GH * scale + 'px';
+});
+
+// Custom cursor
+document.addEventListener('mousemove', e => {
+  const c = document.getElementById('cursor');
+  c.style.left = e.clientX + 'px';
+  c.style.top  = e.clientY + 'px';
+});
+
+// ═══════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════
+const GRAVITY    = 0.55;
+const JUMP_V     = -13;
+const MOVE_SPD   = 4.2;
+const PLAYER_W   = 22;
+const PLAYER_H   = 36;
+const HEALTH_MAX = 100;
+
+// ═══════════════════════════════════════════
+// LEVELS
+// ═══════════════════════════════════════════
+const LEVELS = [
+  {
+    name: 'The Threshold',
+    subtitle: 'Act I',
+    desc: 'A single lantern sweeps the hall.\nLearn to read its rhythm.',
+    bg: '#0e0a0c',
+    platforms: [
+      { x:0,   y:440, w:860, h:40 },   // floor
+      { x:100, y:360, w:120, h:14 },
+      { x:300, y:300, w:100, h:14 },
+      { x:480, y:340, w:110, h:14 },
+      { x:650, y:270, w:130, h:14 },
+      { x:0,   y:0,   w:860, h:10 },   // ceiling
+      { x:0,   y:0,   w:10,  h:480 },  // left wall
+      { x:850, y:0,   w:10,  h:480 },  // right wall
+    ],
+    lights: [
+      { x:400, y:60,  r:130, sweep:true, angle:Math.PI*0.5, range:0.8, speed:0.008, color:'rgba(255,230,160,' },
+    ],
+    shadows: [
+      { x:60,  y:0,  w:80,  h:440 },
+      { x:240, y:0,  w:100, h:360 },
+      { x:420, y:0,  w:80,  h:350 },
+      { x:580, y:0,  w:80,  h:340 },
+      { x:740, y:0,  w:100, h:290 },
+    ],
+    door: { x:800, y:230, w:36, h:40 },
+    spawn: { x:30, y:390 },
+  },
+  {
+    name: 'The Gallery',
+    subtitle: 'Act II',
+    desc: 'Two lanterns conspire.\nThe shadows grow narrow.',
+    bg: '#080b0e',
+    platforms: [
+      { x:0,   y:440, w:860, h:40 },
+      { x:0,   y:0,   w:860, h:10 },
+      { x:0,   y:0,   w:10,  h:480 },
+      { x:850, y:0,   w:10,  h:480 },
+      { x:80,  y:370, w:100, h:14 },
+      { x:240, y:310, w:90,  h:14 },
+      { x:200, y:200, w:80,  h:14 },
+      { x:370, y:260, w:110, h:14 },
+      { x:500, y:180, w:90,  h:14 },
+      { x:620, y:290, w:100, h:14 },
+      { x:730, y:200, w:110, h:14 },
+    ],
+    lights: [
+      { x:200, y:50,  r:140, sweep:true, angle:Math.PI*0.4, range:0.9, speed:0.012, color:'rgba(255,210,130,' },
+      { x:650, y:50,  r:140, sweep:true, angle:Math.PI*0.6, range:0.9, speed:-0.010,color:'rgba(200,220,255,' },
+    ],
+    shadows: [
+      { x:30,  y:0,  w:60,  h:440 },
+      { x:160, y:200,w:80,  h:240 },
+      { x:320, y:0,  w:70,  h:270 },
+      { x:460, y:190,w:70,  h:260 },
+      { x:590, y:0,  w:60,  h:300 },
+      { x:720, y:200,w:80,  h:240 },
+    ],
+    door: { x:808, y:155, w:36, h:44 },
+    spawn: { x:30, y:400 },
+  },
+  {
+    name: 'The Lantern Hall',
+    subtitle: 'Act III',
+    desc: 'They hang from every beam.\nMove only when they blink.',
+    bg: '#060608',
+    platforms: [
+      { x:0,   y:440, w:860, h:40 },
+      { x:0,   y:0,   w:860, h:10 },
+      { x:0,   y:0,   w:10,  h:480 },
+      { x:850, y:0,   w:10,  h:480 },
+      { x:60,  y:380, w:80,  h:14 },
+      { x:180, y:320, w:80,  h:14 },
+      { x:300, y:260, w:80,  h:14 },
+      { x:180, y:180, w:80,  h:14 },
+      { x:300, y:120, w:90,  h:14 },
+      { x:450, y:180, w:80,  h:14 },
+      { x:570, y:260, w:80,  h:14 },
+      { x:690, y:180, w:90,  h:14 },
+      { x:750, y:300, w:80,  h:14 },
+    ],
+    lights: [
+      { x:150, y:40,  r:120, sweep:true, angle:Math.PI*0.3, range:0.7, speed:0.015, color:'rgba(255,200,100,' },
+      { x:400, y:40,  r:120, sweep:true, angle:Math.PI*0.7, range:0.7, speed:-0.013,color:'rgba(255,240,200,' },
+      { x:680, y:40,  r:120, sweep:true, angle:Math.PI*0.5, range:0.7, speed:0.011, color:'rgba(220,200,255,' },
+      { x:280, y:240, r:80,  sweep:false,angle:0,            range:0,   speed:0,     color:'rgba(255,220,150,', blink:true, blinkRate:0.018 },
+    ],
+    shadows: [
+      { x:0,   y:0,  w:50,  h:450 },
+      { x:500, y:0,  w:50,  h:200 },
+      { x:800, y:0,  w:50,  h:450 },
+    ],
+    door: { x:808, y:255, w:36, h:44 },
+    spawn: { x:30, y:400 },
+  },
+];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let lvlIdx    = 0;
+let lives     = 3;
+let score     = 0;
+let player    = {};
+let lightSrcs = [];
+let health    = HEALTH_MAX;
+let gameRunning = false;
+let particles = [];
+let t         = 0;
+let deathPending = false;
+
+const keys = { left:false, right:false, jump:false };
+
+// ═══════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.code === 'ArrowLeft'  || e.code === 'KeyA') keys.left  = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+  if ((e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') && !e.repeat) doJump();
+  e.preventDefault();
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'ArrowLeft'  || e.code === 'KeyA') keys.left  = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+  if (e.code === 'ArrowUp'    || e.code === 'KeyW' || e.code === 'Space') keys.jump = false;
+});
+
+function doJump() {
+  if (player.onGround) {
+    player.vy = JUMP_V;
+    player.onGround = false;
+    spawnParticles(player.x + PLAYER_W/2, player.y + PLAYER_H, 4, '#1a1218');
+  }
+}
+
+// ═══════════════════════════════════════════
+// GAME FLOW
+// ═══════════════════════════════════════════
+function startGame() {
+  lvlIdx = 0; lives = 3; score = 0;
+  hide('screen-start');
+  showLevelCard();
+}
+
+function showLevelCard() {
+  const lvl = LEVELS[lvlIdx];
+  document.getElementById('lvl-subtitle').textContent = lvl.subtitle;
+  document.getElementById('lvl-title-text').textContent = lvl.name;
+  document.getElementById('lvl-desc-text').textContent  = lvl.desc;
+  show('screen-level');
+}
+
+function beginLevel() {
+  hide('screen-level');
+  loadLevel(lvlIdx);
+  gameRunning = true;
+}
+
+function loadLevel(idx) {
+  const lvl = LEVELS[idx];
+  health = HEALTH_MAX;
+  deathPending = false;
+  particles = [];
+  t = 0;
+
+  player = {
+    x: lvl.spawn.x, y: lvl.spawn.y,
+    vx: 0, vy: 0,
+    onGround: false,
+    inShadow: true,
+    visible: false,   // only visible when lit
+    deathTimer: 0,
+    w: PLAYER_W, h: PLAYER_H,
+  };
+
+  // Init lights with current angles
+  lightSrcs = lvl.lights.map(l => ({ ...l }));
+
+  updateHUD();
+}
+
+function retryLevel() {
+  hide('screen-death');
+  if (lives <= 0) { restartGame(); return; }
+  loadLevel(lvlIdx);
+  gameRunning = true;
+}
+
+function restartGame() {
+  hide('screen-win'); hide('screen-death');
+  lvlIdx = 0; lives = 3; score = 0;
+  showLevelCard(); show('screen-level');
+}
+
+function show(id) { document.getElementById(id).classList.add('show'); }
+function hide(id) { document.getElementById(id).classList.remove('show'); }
+
+// ═══════════════════════════════════════════
+// PHYSICS & COLLISION
+// ═══════════════════════════════════════════
+function updatePlayer() {
+  const lvl = LEVELS[lvlIdx];
+
+  if (keys.left)  player.vx = -MOVE_SPD;
+  else if (keys.right) player.vx =  MOVE_SPD;
+  else player.vx *= 0.72;
+
+  player.vy += GRAVITY;
+  player.x  += player.vx;
+  player.y  += player.vy;
+  player.onGround = false;
+
+  // Platform collision
+  for (const p of lvl.platforms) {
+    if (overlapAABB(player, p)) {
+      resolveCollision(player, p);
+    }
+  }
+
+  // Clamp
+  player.x = Math.max(0, Math.min(GW - player.w, player.x));
+}
+
+function overlapAABB(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function resolveCollision(p, plat) {
+  const dx = (p.x + p.w/2) - (plat.x + plat.w/2);
+  const dy = (p.y + p.h/2) - (plat.y + plat.h/2);
+  const overlapX = (p.w/2 + plat.w/2) - Math.abs(dx);
+  const overlapY = (p.h/2 + plat.h/2) - Math.abs(dy);
+
+  if (overlapX < overlapY) {
+    p.x += dx < 0 ? -overlapX : overlapX;
+    p.vx = 0;
+  } else {
+    if (dy < 0) { p.y = plat.y - p.h; p.vy = 0; p.onGround = true; }
+    else        { p.y = plat.y + plat.h; p.vy = 1; }
+  }
+}
+
+// ═══════════════════════════════════════════
+// LIGHT SYSTEM
+// ═══════════════════════════════════════════
+function updateLights() {
+  const lvl = LEVELS[lvlIdx];
+  lightSrcs.forEach(l => {
+    if (l.sweep) l.angle += l.speed;
+    if (l.blink) {
+      l._blinkPhase = (l._blinkPhase || 0) + l.blinkRate;
+      l._on = Math.sin(l._blinkPhase) > 0;
+    } else {
+      l._on = true;
+    }
+  });
+}
+
+function isPlayerLit() {
+  const cx = player.x + player.w/2;
+  const cy = player.y + player.h/2;
+
+  for (const l of lightSrcs) {
+    if (!l._on) continue;
+    const dx = cx - l.x, dy = cy - l.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > l.r) continue;
+
+    if (l.sweep) {
+      const angle = Math.atan2(dy, dx);
+      let diff = angle - l.angle;
+      while (diff >  Math.PI) diff -= 2*Math.PI;
+      while (diff < -Math.PI) diff += 2*Math.PI;
+      if (Math.abs(diff) < l.range) return { lit: true, intensity: 1 - dist/l.r };
+    } else {
+      return { lit: true, intensity: 1 - dist/l.r };
+    }
+  }
+  return { lit: false, intensity: 0 };
+}
+
+function checkDoor() {
+  const lvl = LEVELS[lvlIdx];
+  const d   = lvl.door;
+  if (overlapAABB(player, d)) {
+    // Win level
+    score += Math.round(health) * 10 * (lvlIdx + 1);
+    document.getElementById('hud-score').textContent = score;
+    gameRunning = false;
+    lvlIdx++;
+    if (lvlIdx >= LEVELS.length) {
+      document.getElementById('win-score').textContent = `Score: ${score}`;
+      setTimeout(() => show('screen-win'), 400);
+    } else {
+      setTimeout(() => showLevelCard(), 400);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// PARTICLES
+// ═══════════════════════════════════════════
+function spawnParticles(x, y, n, col) {
+  for (let i = 0; i < n; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*4,
+      vy: (Math.random()-0.5)*4 - 2,
+      life: 1, col,
+      r: Math.random()*3+1,
+    });
+  }
+}
+
+function updateParticles() {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.1;
+    p.life -= 0.04;
+  });
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function draw() {
+  const lvl = LEVELS[lvlIdx];
+
+  // ── Background ──
+  ctx.fillStyle = lvl.bg;
+  ctx.fillRect(0, 0, GW, GH);
+
+  // Subtle background texture lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+  ctx.lineWidth = 1;
+  for (let y = 0; y < GH; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(GW,y); ctx.stroke();
+  }
+
+  // ── Platforms (dark silhouette) ──
+  lvl.platforms.forEach(p => {
+    // Skip walls/floor/ceiling for now (draw later as silhouette)
+    ctx.fillStyle = '#0a0608';
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    // Subtle top edge
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(p.x, p.y, p.w, 1);
+  });
+
+  // ── Light cones ──
+  lightSrcs.forEach(l => {
+    if (!l._on) return;
+    if (l.sweep) {
+      const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+      grad.addColorStop(0,   l.color + '0.22)');
+      grad.addColorStop(0.4, l.color + '0.10)');
+      grad.addColorStop(1,   l.color + '0)');
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(l.x, l.y);
+      ctx.arc(l.x, l.y, l.r, l.angle - l.range, l.angle + l.range);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+
+      // Hard edge rays
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = l.color + '0.5)';
+      ctx.lineWidth = 1;
+      for (let i = -1; i <= 1; i++) {
+        const a = l.angle + i * l.range;
+        ctx.beginPath();
+        ctx.moveTo(l.x, l.y);
+        ctx.lineTo(l.x + Math.cos(a)*l.r, l.y + Math.sin(a)*l.r);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Source dot
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 5, 0, Math.PI*2);
+      ctx.fillStyle = l.color + '0.9)';
+      ctx.fill();
+      // Halo
+      const halo = ctx.createRadialGradient(l.x, l.y, 2, l.x, l.y, 20);
+      halo.addColorStop(0, l.color + '0.5)');
+      halo.addColorStop(1, l.color + '0)');
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 20, 0, Math.PI*2);
+      ctx.fillStyle = halo;
+      ctx.fill();
+
+    } else {
+      // Radial (blinking) light
+      const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+      grad.addColorStop(0,   l.color + '0.18)');
+      grad.addColorStop(1,   l.color + '0)');
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, l.r, 0, Math.PI*2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 4, 0, Math.PI*2);
+      ctx.fillStyle = l.color + '0.8)';
+      ctx.fill();
+    }
+  });
+
+  // ── Shadow zones (safe darkness) ──
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  lvl.shadows.forEach(s => {
+    ctx.fillStyle = '#4488aa';
+    ctx.fillRect(s.x, s.y, s.w, s.h);
+  });
+  ctx.restore();
+
+  // ── Door ──
+  const d = lvl.door;
+  const doorGlow = 0.5 + 0.5 * Math.sin(t * 0.04);
+  // Frame
+  ctx.strokeStyle = `rgba(80,60,40,${0.4 + doorGlow * 0.3})`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(d.x, d.y, d.w, d.h);
+  // Fill
+  const dg = ctx.createLinearGradient(d.x, d.y, d.x, d.y+d.h);
+  dg.addColorStop(0, `rgba(20,14,10,0.9)`);
+  dg.addColorStop(1, `rgba(60,40,20,${0.2 + doorGlow*0.2})`);
+  ctx.fillStyle = dg;
+  ctx.fillRect(d.x+2, d.y+2, d.w-4, d.h-4);
+  // Keyhole
+  ctx.beginPath();
+  ctx.arc(d.x+d.w/2, d.y+d.h*0.4, 4, 0, Math.PI*2);
+  ctx.fillStyle = `rgba(200,160,80,${0.4+doorGlow*0.4})`;
+  ctx.fill();
+  // Glow around door
+  const doorHalo = ctx.createRadialGradient(d.x+d.w/2, d.y+d.h/2, 0, d.x+d.w/2, d.y+d.h/2, 40);
+  doorHalo.addColorStop(0, `rgba(80,50,20,${0.12*doorGlow})`);
+  doorHalo.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = doorHalo;
+  ctx.beginPath();
+  ctx.arc(d.x+d.w/2, d.y+d.h/2, 40, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── Player ──
+  drawPlayer();
+
+  // ── Particles ──
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life * 0.8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.col;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // ── Darkness vignette ──
+  const vig = ctx.createRadialGradient(GW/2, GH/2, GH*0.25, GW/2, GH/2, GH*0.85);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, GW, GH);
+
+  // ── HUD: darkness indicator if in light ──
+  if (!player.inShadow) {
+    const flicker = 0.7 + 0.3 * Math.sin(t * 0.3);
+    ctx.fillStyle = `rgba(255,200,100,${0.06 * flicker})`;
+    ctx.fillRect(0, 0, GW, GH);
+  }
+}
+
+function drawPlayer() {
+  const px = player.x, py = player.y;
+  const pw = player.w, ph = player.h;
+  const cx = px + pw/2, cy = py + ph/2;
+
+  if (player.inShadow) {
+    // Pure black silhouette — simple humanoid
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+
+    // Body
+    ctx.fillStyle = '#000000';
+    // Torso
+    ctx.fillRect(px + 4, py + 14, pw - 8, ph - 22);
+    // Head
+    ctx.beginPath();
+    ctx.ellipse(cx, py + 8, 8, 9, 0, 0, Math.PI*2);
+    ctx.fill();
+    // Legs
+    const legOff = Math.sin(t * 0.3) * 5 * (Math.abs(player.vx) > 0.5 ? 1 : 0);
+    ctx.fillRect(px+4, py+ph-14, pw/2-3, 14);
+    ctx.fillRect(px+pw/2+1, py+ph-14, pw/2-3, 14);
+
+    // Subtle shadow shimmer at edges
+    const sg = ctx.createLinearGradient(px, py, px+pw, py+ph);
+    sg.addColorStop(0, 'rgba(40,20,30,0.4)');
+    sg.addColorStop(0.5,'rgba(0,0,0,0)');
+    sg.addColorStop(1, 'rgba(40,20,30,0.3)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(px, py, pw, ph);
+
+    // Eyes — faint violet gleam
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#8866aa';
+    ctx.beginPath(); ctx.arc(cx - 3, py + 7, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 3, py + 7, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+  } else {
+    // In light: flickering, dissolving — barely visible
+    const flicker = 0.3 + 0.2 * Math.sin(t * 0.8);
+    ctx.save();
+    ctx.globalAlpha = flicker;
+
+    // Distorted ghost-like shape
+    ctx.fillStyle = 'rgba(180,140,100,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(cx, py+10, 9+Math.sin(t*0.4)*2, 10, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillRect(px+4, py+14, pw-8, ph-22);
+
+    // Dissolution particles
+    if (t % 3 === 0) {
+      spawnParticles(cx + (Math.random()-0.5)*pw, cy + (Math.random()-0.5)*ph, 1, 'rgba(255,200,100,0.3)');
+    }
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════
+// HUD
+// ═══════════════════════════════════════════
+function updateHUD() {
+  document.getElementById('hud-level').textContent = lvlIdx + 1;
+  document.getElementById('hud-score').textContent = score;
+  const hearts = '♦'.repeat(lives) + '◇'.repeat(Math.max(0, 3 - lives));
+  document.getElementById('hud-lives').textContent = hearts;
+  const pct = Math.round(health);
+  document.getElementById('health-fill').style.width = pct + '%';
+  document.getElementById('health-pct').textContent  = pct + '%';
+  // Color shift
+  const hue = pct > 60 ? '#8a6040' : pct > 30 ? '#8a6020' : '#8a2010';
+  document.getElementById('health-fill').style.background =
+    pct > 60 ? 'linear-gradient(90deg,#3a2a1a,#8a6040)' :
+    pct > 30 ? 'linear-gradient(90deg,#4a2a0a,#9a7020)' :
+               'linear-gradient(90deg,#4a0a0a,#9a2010)';
+}
+
+// ═══════════════════════════════════════════
+// MAIN LOOP
+// ═══════════════════════════════════════════
+function loop() {
+  requestAnimationFrame(loop);
+  if (!gameRunning) { drawIdle(); return; }
+
+  t++;
+
+  updateLights();
+  updatePlayer();
+  updateParticles();
+
+  // Light check
+  const lit = isPlayerLit();
+  player.inShadow = !lit.lit;
+  player.visible  = lit.lit;
+
+  if (lit.lit && !deathPending) {
+    health -= 0.8 * (1 + lit.intensity);
+    health = Math.max(0, health);
+    score  = Math.max(0, score);
+    if (health <= 0 && !deathPending) {
+      deathPending = true;
+      gameRunning  = false;
+      lives--;
+      updateHUD();
+      spawnParticles(player.x+player.w/2, player.y+player.h/2, 20, 'rgba(200,160,100,0.6)');
+      setTimeout(() => show('screen-death'), 800);
+    }
+  } else if (player.inShadow && health < HEALTH_MAX) {
+    health = Math.min(HEALTH_MAX, health + 0.15);
+  }
+
+  updateHUD();
+  checkDoor();
+  draw();
+}
+
+function drawIdle() {
+  // Animate lights on screens
+  ctx.fillStyle = '#0a0608';
+  ctx.fillRect(0, 0, GW, GH);
+  const vig = ctx.createRadialGradient(GW/2, GH/2, 100, GW/2, GH/2, GW*0.8);
+  vig.addColorStop(0,'rgba(20,10,14,0)');
+  vig.addColorStop(1,'rgba(0,0,0,0.9)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0,0,GW,GH);
+}
+
+// Start
+loop();
+</script>
+</body>
+</html>
